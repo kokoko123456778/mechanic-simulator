@@ -49,6 +49,8 @@ jobs:
           sed -i 's#<activity #<activity android:screenOrientation="landscape" #' "$MANIFEST"
           # своё имя и свой идентификатор приложения, чтобы игры не затирали друг друга на телефоне
           sed -i -E "s#applicationId ['\"]org\.libsdl\.app['\"]#applicationId \"$APP_ID\"#" app/build.gradle
+          # в шаблоне SDL нет applicationId (он берётся из namespace org.libsdl.app, и все игры получались одним приложением): задаём свой
+          grep -q applicationId app/build.gradle || sed -i "0,/defaultConfig {/s//defaultConfig {\n        applicationId \"$APP_ID\"/" app/build.gradle
           sed -i -E "s#(<string name=\"app_name\">)[^<]*(</string>)#\1$APP_LABEL\2#" app/src/main/res/values/strings.xml
           echo "----- Android.mk -----"; cat app/jni/src/Android.mk
           echo "----- Application.mk -----"; cat app/jni/Application.mk
