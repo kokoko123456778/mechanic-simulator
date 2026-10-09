@@ -1,0 +1,132 @@
+name: build-apk
+
+# Собирает APK игры (SDL2, Android) и публикует его в Releases: из приложения «Мой Steam» его можно скачать одной кнопкой.
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  APP_ID: com.kokoko.mechanic3d
+  APP_LABEL: Симулятор механика 3D
+  APK_NAME: Mechanic3D.apk
+  JNI_NAME: mechanic3d
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: libsdl-org/SDL
+          ref: SDL2
+          path: SDL
+
+      - uses: actions/checkout@v4
+        with:
+          path: game
+
+      - name: Prepare SDL android project
+        run: |
+          cd SDL/android-project
+          ln -sfn ../../../ app/jni/SDL
+          ls -la app/jni/SDL
+          SRC=$(ls -1 ../../game/*.cpp | sort -V | tail -n 1)
+          echo "Файл игры: $SRC"
+          cp "$SRC" app/jni/src/$JNI_NAME.cpp
+          # заголовки SDL лежат в SDL/include/SDL.h, а игра подключает <SDL2/SDL.h>: приводим к одному виду
+          sed -i 's#<SDL2/#<#g' app/jni/src/$JNI_NAME.cpp
+          sed -i "s/LOCAL_SRC_FILES := YourSourceHere.c/LOCAL_SRC_FILES := $JNI_NAME.cpp/" app/jni/src/Android.mk
+          sed -i '/LOCAL_SRC_FILES/a LOCAL_CPPFLAGS := -std=c++14 -Wno-narrowing' app/jni/src/Android.mk
+          printf 'APP_STL := c++_shared\nAPP_PLATFORM := android-21\n' > app/jni/Application.mk
+          MANIFEST=app/src/main/AndroidManifest.xml
+          sed -i 's#<application#<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />\n\n    <application#' "$MANIFEST"
+          sed -i 's#<activity #<activity android:screenOrientation="landscape" #' "$MANIFEST"
+          # своё имя и свой идентификатор приложения, чтобы игры не затирали друг друга на телефоне
+          sed -i -E "s#applicationId ['\"]org\.libsdl\.app['\"]#applicationId \"$APP_ID\"#" app/build.gradle
+          sed -i -E "s#(<string name=\"app_name\">)[^<]*(</string>)#\1$APP_LABEL\2#" app/src/main/res/values/strings.xml
+          echo "----- Android.mk -----"; cat app/jni/src/Android.mk
+          echo "----- Application.mk -----"; cat app/jni/Application.mk
+          echo "----- applicationId -----"; grep -n applicationId app/build.gradle || true
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install NDK
+        run: |
+          SDKMGR=$(find "$ANDROID_SDK_ROOT/cmdline-tools" -name sdkmanager -type f | head -n 1)
+          echo "sdkmanager: $SDKMGR"
+          yes | "$SDKMGR" --licenses --sdk_root="$ANDROID_SDK_ROOT" >/dev/null || true
+          yes | "$SDKMGR" --install "ndk;26.1.10909125" --sdk_root="$ANDROID_SDK_ROOT"
+          echo "ndk.dir=$ANDROID_SDK_ROOT/ndk/26.1.10909125" >> SDL/android-project/local.properties
+
+      - name: Signing key (one key for all builds, so updates install over old versions)
+        run: |
+          base64 -d > SDL/android-project/game.keystore <<'KEYSTORE_EOF'
+          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
+          5UOmK2sCAicQ
+          KEYSTORE_EOF
+
+      - name: Build APK
+        working-directory: SDL/android-project
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --stacktrace \
+            -Pandroid.injected.signing.store.file="$PWD/game.keystore" \
+            -Pandroid.injected.signing.store.password=mygames123 \
+            -Pandroid.injected.signing.key.alias=mygames \
+            -Pandroid.injected.signing.key.password=mygames123
+
+      - name: Name the APK
+        run: cp SDL/android-project/app/build/outputs/apk/debug/*.apk "$APK_NAME"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: ${{ env.APK_NAME }}
+
+      - name: Publish release (APK for the Steam app)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}
+          name: ${{ env.APP_LABEL }} (сборка ${{ github.run_number }})
+          files: ${{ env.APK_NAME }}
