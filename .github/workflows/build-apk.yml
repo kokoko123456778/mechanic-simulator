@@ -40,7 +40,9 @@ jobs:
           # заголовки SDL лежат в SDL/include/SDL.h, а игра подключает <SDL2/SDL.h>: приводим к одному виду
           sed -i 's#<SDL2/#<#g' app/jni/src/$JNI_NAME.cpp
           sed -i "s/LOCAL_SRC_FILES := YourSourceHere.c/LOCAL_SRC_FILES := $JNI_NAME.cpp/" app/jni/src/Android.mk
-          sed -i '/LOCAL_SRC_FILES/a LOCAL_CPPFLAGS := -std=c++14 -Wno-narrowing' app/jni/src/Android.mk
+          sed -i '/LOCAL_SRC_FILES/a LOCAL_CPPFLAGS := -std=c++14 -Wno-narrowing -fexceptions' app/jni/src/Android.mk
+          # игре нужны исключения C++ (try/catch), в NDK они по умолчанию выключены
+          sed -i '/LOCAL_CPPFLAGS/a LOCAL_CPP_FEATURES := exceptions rtti' app/jni/src/Android.mk
           printf 'APP_STL := c++_shared\nAPP_PLATFORM := android-21\n' > app/jni/Application.mk
           MANIFEST=app/src/main/AndroidManifest.xml
           sed -i 's#<application#<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />\n\n    <application#' "$MANIFEST"
