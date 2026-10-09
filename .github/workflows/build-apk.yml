@@ -52,6 +52,10 @@ jobs:
           # в шаблоне SDL нет applicationId (он берётся из namespace org.libsdl.app, и все игры получались одним приложением): задаём свой
           grep -q applicationId app/build.gradle || sed -i "0,/defaultConfig {/s//defaultConfig {\n        applicationId \"$APP_ID\"/" app/build.gradle
           sed -i -E "s#(<string name=\"app_name\">)[^<]*(</string>)#\1$APP_LABEL\2#" app/src/main/res/values/strings.xml
+          # рисовать на весь экран, в том числе под вырезом камеры (иначе справа остаётся чёрная полоса)
+          ACT=app/src/main/java/org/libsdl/app/SDLActivity.java
+          [ -f "$ACT" ] && sed -i '0,/super.onCreate(savedInstanceState);/s//super.onCreate(savedInstanceState);\n        if (android.os.Build.VERSION.SDK_INT >= 28) { getWindow().getAttributes().layoutInDisplayCutoutMode = 1; }/' "$ACT"
+          grep -n "layoutInDisplayCutoutMode" "$ACT" || echo "cutout patch NOT applied"
           echo "----- Android.mk -----"; cat app/jni/src/Android.mk
           echo "----- Application.mk -----"; cat app/jni/Application.mk
           echo "----- applicationId -----"; grep -n applicationId app/build.gradle || true
