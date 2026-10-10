@@ -28,13 +28,19 @@ jobs:
       - uses: actions/checkout@v4
         with:
           path: game
+          fetch-depth: 0
 
       - name: Prepare SDL android project
         run: |
           cd SDL/android-project
           ln -sfn ../../../ app/jni/SDL
           ls -la app/jni/SDL
-          SRC=$(ls -1 ../../game/*.cpp | sort -V | tail -n 1)
+          # берём тот файл .cpp, который загружали последним (по времени коммита), номер в имени не важен
+          BEST=0; SRC=""
+          for f in ../../game/*.cpp; do
+            T=$(git -C ../../game log -1 --format=%ct -- "$(basename "$f")")
+            if [ "${T:-0}" -ge "$BEST" ]; then BEST=${T:-0}; SRC="$f"; fi
+          done
           echo "Файл игры: $SRC"
           cp "$SRC" app/jni/src/$JNI_NAME.cpp
           # заголовки SDL лежат в SDL/include/SDL.h, а игра подключает <SDL2/SDL.h>: приводим к одному виду
