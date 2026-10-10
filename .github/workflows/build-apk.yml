@@ -56,6 +56,18 @@ jobs:
           ACT=app/src/main/java/org/libsdl/app/SDLActivity.java
           [ -f "$ACT" ] && sed -i '0,/super.onCreate(savedInstanceState);/s//super.onCreate(savedInstanceState);\n        if (android.os.Build.VERSION.SDK_INT >= 28) { getWindow().getAttributes().layoutInDisplayCutoutMode = 1; }/' "$ACT"
           grep -n "layoutInDisplayCutoutMode" "$ACT" || echo "cutout patch NOT applied"
+          # тема с «заходом» под вырез камеры (в ландшафте иначе справа остаётся чёрная полоса)
+          mkdir -p app/src/main/res/values
+          cat > app/src/main/res/values/cutout.xml <<'XEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+            <style name="GameTheme" parent="@android:style/Theme.NoTitleBar.Fullscreen">
+              <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+            </style>
+          </resources>
+          XEOF
+          sed -i -E 's#android:theme="[^"]*"#android:theme="@style/GameTheme"#' "$MANIFEST"
+          grep -n "android:theme" "$MANIFEST" || echo "ТЕМА НЕ НАЙДЕНА В МАНИФЕСТЕ"
           echo "----- Android.mk -----"; cat app/jni/src/Android.mk
           echo "----- Application.mk -----"; cat app/jni/Application.mk
           echo "----- applicationId -----"; grep -n applicationId app/build.gradle || true
